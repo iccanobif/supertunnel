@@ -54,9 +54,9 @@ public class Connection {
 		public void run() {
 			try {
 				while (true) {
-					System.out.println("starting receive");
+                    Client.log("starting receive");
 					Response response = Client.request("GET", "action=receive&connection=" + connectionId, null);
-					System.out.println("finished receive");
+                    Client.log("finished receive");
 					output.write(response.data);
 					output.flush();
 					Thread.sleep(1000);
@@ -116,10 +116,10 @@ public class Connection {
 	}
 
 	public void sendToServer(byte[] data) throws IOException {
-		System.out.println("starting send");
+        Client.log("starting send");
 		Response response = Client.request("POST",
 				"action=send&connection=" + connectionId + "&length=" + data.length + "&sequence=" + (lastReadSequence++), data);
-		System.out.println("finished send");
+        Client.log("finished send");
 		if (response.status != 200)
 			throw new IOException("Response code " + response.status + " received, expected 200");
 	}
@@ -133,7 +133,7 @@ public class Connection {
 			}
 		}
 	}
-
+    
 	public void start() throws IOException {
 		this.input = socket.getInputStream();
 		this.output = socket.getOutputStream();
@@ -145,7 +145,7 @@ public class Connection {
 			} catch (Exception ex) {
 				ex.printStackTrace();
 			}
-			System.out.println("Could not create a connection on the target");
+            Client.log("Could not create a connection on the target");
 			e.printStackTrace(System.out);
 			return;
 		}
@@ -163,9 +163,9 @@ public class Connection {
 
 	public byte[] sendBuffer = new byte[1024];
 	public BlockingQueue<byte[]> sendQueue = new LinkedBlockingQueue<byte[]>(1000);
-	public Socket socket;
-	public InputStream input;
-	public OutputStream output;
+    public Socket socket; //socket for the (TCP) connection with the local client
+    public InputStream input; //comes from socket
+    public OutputStream output; //comes from socket
 	public long lastReadSequence = 1;
 	public String connectionId;
 	public ReadThread readThread = new ReadThread();

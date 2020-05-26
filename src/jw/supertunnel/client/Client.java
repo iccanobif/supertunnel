@@ -18,6 +18,18 @@ import java.util.Queue;
 import jw.supertunnel.Constants;
 import jw.supertunnel.server.ResponseException;
 
+import java.net.Authenticator;
+import java.net.PasswordAuthentication;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+import com.sun.net.httpserver.*;
+import javax.net.ssl.*;
+import java.security.*;
+import java.security.cert.*;
+//import javax.security.cert.*;
+
+
 /**
  * 
  * @author Alexander Boyd
@@ -29,10 +41,77 @@ public class Client {
 	public static String configTargetHost;
 	public static int configTargetPort;
 	public static int configPort = 10229;
+    
+    public static String authUser = "username";
+    public static String authPassword = "password";
+    public static String proxyHost = "proxyhost";
+    public static String proxyPort = "8081";
+    
+    
+    public static void disableSslVerification() 
+    {
+        try
+        {
+            // Create a trust manager that does not validate certificate chains
+            TrustManager[] trustAllCerts = new TrustManager[] {new X509TrustManager() 
+            {
+                public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+                }
+
+                public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+                }
+
+                public X509Certificate[] getAcceptedIssuers() {
+                    return null;
+                }
+            }
+            };
+
+            // Install the all-trusting trust manager
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+
+            // Create all-trusting host name verifier
+            HostnameVerifier allHostsValid = new HostnameVerifier() {
+                public boolean verify(String hostname, SSLSession session) {
+                    return true;
+                }
+            };
+
+            // Install the all-trusting host verifier
+            HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (KeyManagementException e) {
+            e.printStackTrace();
+        }
+    }
 
 	public static void main(String[] args) throws Throwable {
-		parseArgs(args);
-		System.out.println("Listening on port " + configPort + " and tunneling to " + configTargetHost + " on port " + configTargetPort);
+        
+        Authenticator.setDefault(new Authenticator() {
+                  @Override
+                  public PasswordAuthentication getPasswordAuthentication() {
+                     return new PasswordAuthentication(
+                           authUser, authPassword.toCharArray());
+                  }
+               }
+            );
+
+        // System.setProperty("http.proxyUser", authUser);
+        // System.setProperty("http.proxyPassword", authPassword);
+        // System.setProperty("http.proxyHost", proxyHost);
+        // System.setProperty("http.proxyPort", proxyPort);
+        // System.setProperty("https.proxyUser", authUser);
+        // System.setProperty("https.proxyPassword", authPassword);
+        // System.setProperty("https.proxyHost", proxyHost);
+        // System.setProperty("https.proxyPort", proxyPort);
+        
+        disableSslVerification();
+        
+        parseArgs(args);
+        log("Listening on port " + configPort + " and tunneling to " + configTargetHost + " on port " + configTargetPort);
 		server = new ServerSocket(configPort);
 		while (true) {
 			Socket socket = server.accept();
@@ -75,7 +154,7 @@ public class Client {
 
 	public static URL createRequestUrl(String query) {
 		try {
-			return new URI("http", null, configTargetHost, configTargetPort, "/index.html", query, null).toURL();
+			return new URI("https", null, configTargetHost, configTargetPort, "/index.html", query, null).toURL();
 		} catch (MalformedURLException e) {
 			throw new RuntimeException(e);
 		} catch (URISyntaxException e) {
@@ -130,5 +209,10 @@ public class Client {
 				throw new ResponseException(Constants.httpTooMuchData);
 		}
 	}
+    
+    public static void log(String str)
+    {
+        System.out.println(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + " " + str);
+    }
 
 }

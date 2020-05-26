@@ -1,9 +1,6 @@
 package jw.supertunnel.server;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.util.ArrayDeque;
@@ -18,15 +15,16 @@ import java.util.concurrent.TimeUnit;
 
 import javax.xml.bind.DatatypeConverter;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.*;
+import javax.net.ssl.*;
+import java.security.*;
+import javax.security.cert.*;
 
 import jw.supertunnel.Constants;
 
 @SuppressWarnings("restriction")
 public class Server {
-	public static HttpServer httpServer;
+	public static HttpsServer httpServer;
 
 	public static int configPort = 80;
 
@@ -75,11 +73,66 @@ public class Server {
 			throw new RuntimeException(
 					"You didn't specify a host/port to connect to, " + "in the format \"host:port\" at the end of the command.");
 	}
+    
+    private static HttpsConfigurator getHttpsConfigurator()
+    {
+        try
+        {
+            SSLContext sslContext = SSLContext.getInstance ( "TLS" );
+
+            // initialise the keystore
+            char[] password = "simulator".toCharArray ();
+            KeyStore ks = KeyStore.getInstance ( "JKS" );
+            FileInputStream fis = new FileInputStream ( "lig.keystore" );
+            ks.load ( fis, password );
+
+            // setup the key manager factory
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance ( "SunX509" );
+            kmf.init ( ks, password );
+
+            // setup the trust manager factory
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance ( "SunX509" );
+            tmf.init ( ks );
+
+            // setup the HTTPS context and parameters
+            sslContext.init ( kmf.getKeyManagers (), tmf.getTrustManagers (), null );
+            return new HttpsConfigurator( sslContext )
+                {
+                    public void configure ( HttpsParameters params )
+                    {
+                        try
+                        {
+                            // initialise the SSL context
+                            SSLContext c = SSLContext.getDefault ();
+                            SSLEngine engine = c.createSSLEngine ();
+                            params.setNeedClientAuth ( false );
+                            params.setCipherSuites ( engine.getEnabledCipherSuites () );
+                            params.setProtocols ( engine.getEnabledProtocols () );
+
+                            // get the default parameters
+                            SSLParameters defaultSSLParameters = c.getDefaultSSLParameters ();
+                            params.setSSLParameters ( defaultSSLParameters );
+                        }
+                        catch ( Exception ex )
+                        {
+                            ex.printStackTrace();
+                        }
+                    }
+                };
+        }
+        catch (Exception ex)
+        {
+            ex.printStackTrace();
+            return null;
+        }
+        
+    }
 
 	private static void setupHttpServer() throws IOException {
 		httpExecutor.allowCoreThreadTimeOut(true);
-		httpServer = HttpServer.create(new InetSocketAddress(configPort), 100);
+        httpServer = HttpsServer.create(new InetSocketAddress(configPort), 100);
 		httpServer.setExecutor(httpExecutor);
+        httpServer.setHttpsConfigurator(getHttpsConfigurator());
 		httpServer.createContext("/", new HttpHandler() {
 
 			@SuppressWarnings("deprecation")
